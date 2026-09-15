@@ -1,0 +1,144 @@
+<#
+.SYNOPSIS
+    Sortinghat - sort a class into Teams private channels by drag and drop.
+
+.DESCRIPTION
+    Starts a small web page on this computer only (nothing is published to the
+    internet), signs you in to Microsoft Teams with your normal university
+    login, and lets you drag students into private channels. Nothing is changed
+    in Teams until you review the plan and press Apply.
+
+.PARAMETER Port
+    Fix the local port instead of letting Windows pick a free one.
+
+.PARAMETER NoBrowser
+    Start the server but do not open a browser (used for testing).
+
+.PARAMETER Mock
+    Run against a fake tenant instead of Microsoft Teams. Nothing real is
+    touched. Useful for practising, demonstrating, or testing changes.
+
+.EXAMPLE
+    .\Start-Sortinghat.ps1
+
+.EXAMPLE
+    .\Start-Sortinghat.ps1 -Mock
+#>
+[CmdletBinding()]
+param(
+    [int]$Port = 0,
+    [switch]$NoBrowser,
+    [switch]$Mock
+)
+
+$ErrorActionPreference = 'Stop'
+
+$script:ShVersion = '1.0.0'
+$script:ShRoot = $PSScriptRoot
+if (-not $script:ShRoot) { $script:ShRoot = (Get-Location).Path }
+$script:ShMockMode = [bool]$Mock -or ($env:SORTINGHAT_MOCK -eq '1')
+$script:ShTeamsModuleName = 'MicrosoftTeams'
+$script:ShTeamsModuleVersion = ''
+
+function Write-ShBanner {
+    Write-Host ''
+    Write-Host '  ____             _   _                _           _   ' -ForegroundColor DarkCyan
+    Write-Host ' / ___|  ___  _ __| |_(_)_ __   __ _  | |__   __ _| |_ ' -ForegroundColor DarkCyan
+    Write-Host ' \___ \ / _ \|  __| __| |  _ \ / _  | |  _ \ / _  | __|' -ForegroundColor DarkCyan
+    Write-Host '  ___) | (_) | |  | |_| | | | | (_| | | | | | (_| | |_ ' -ForegroundColor DarkCyan
+    Write-Host ' |____/ \___/|_|   \__|_|_| |_|\__, | |_| |_|\__,_|\__|' -ForegroundColor DarkCyan
+    Write-Host '                               |___/                   ' -ForegroundColor DarkCyan
+    Write-Host "  Sort a class into Teams private channels   v$script:ShVersion" -ForegroundColor Gray
+    Write-Host ''
+}
+
+function Assert-ShPowerShellVersion {
+    if ($PSVersionTable.PSVersion.Major -lt 5) {
+        throw "Sortinghat needs Windows PowerShell 5.1 or later. This is version $($PSVersionTable.PSVersion)."
+    }
+}
+
+function Install-ShTeamsModuleIfNeeded {
+    <# Returns the newest installed MicrosoftTeams module, installing it first if needed. #>
+    $module = Get-Module -ListAvailable -Name MicrosoftTeams |
+              Sort-Object Version -Descending | Select-Object -First 1
+    if ($module) { return $module }
+
+    Write-Host '  The Microsoft Teams PowerShell module is not installed yet.' -ForegroundColor Yellow
+    Write-Host '  It installs under your own user account - no administrator rights needed.' -ForegroundColor DarkGray
+    Write-Host ''
+    $answer = Read-Host '  Install it now? (Y/N)'
+    if ($answer -notmatch '^[Yy]') {
+        throw 'Sortinghat cannot run without the MicrosoftTeams module.'
+    }
+
+    Write-Host '  Installing - this takes a couple of minutes the first time...' -ForegroundColor Cyan
+    try {
+        [Net.ServicePointManager]::SecurityProtocol =
+            [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+    } catch { }
+    try { Get-PackageProvider -Name NuGet -ForceBootstrap -ErrorAction SilentlyContinue | Out-Null } catch { }
+
+    Install-Module -Name MicrosoftTeams -Scope CurrentUser -Force -AllowClobber -ErrorAction Stop
+
+    $module = Get-Module -ListAvailable -Name MicrosoftTeams |
+              Sort-Object Version -Descending | Select-Object -First 1
+    if (-not $module) { throw 'The module did not install. See README.md, "When something goes wrong".' }
+    return $module
+}
+
+# ---------------------------------------------------------------------------
+
+try {
+    Clear-Host
+} catch { }
+
+Write-ShBanner
+Assert-ShPowerShellVersion
+
+. (Join-Path (Join-Path $script:ShRoot 'src') 'Server.ps1')
+. (Join-Path (Join-Path $script:ShRoot 'src') 'TeamsApi.ps1')
+. (Join-Path (Join-Path $script:ShRoot 'src') 'Api.ps1')
+
+if ($script:ShMockMode) {
+    Write-Host '  Practice mode: using a fake tenant. Nothing real will change.' -ForegroundColor Yellow
+    . (Join-Path (Join-Path $script:ShRoot 'src') 'MockTeams.ps1')
+    $script:ShTeamsModuleName = 'Practice mode (no real Teams connection)'
+    $script:ShTeamsModuleVersion = 'mock'
+} else {
+    $teamsModule = Install-ShTeamsModuleIfNeeded
+    Write-Host "  Loading the Microsoft Teams module (v$($teamsModule.Version))..." -ForegroundColor DarkGray
+    Import-Module -Name MicrosoftTeams -MinimumVersion $teamsModule.Version -Global -ErrorAction Stop
+    $script:ShTeamsModuleVersion = [string]$teamsModule.Version
+}
+
+$sessionKey = New-ShSessionKey
+$uiRoot = Join-Path (Join-Path $script:ShRoot 'src') 'ui'
+
+$onReady = {
+    param([int]$boundPort)
+    $url = "http://127.0.0.1:$boundPort/?k=$sessionKey"
+
+    Write-Host ''
+    Write-Host '  Sortinghat is running on this computer only.' -ForegroundColor Green
+    Write-Host "  If the page does not open by itself, paste this into your browser:" -ForegroundColor DarkGray
+    Write-Host "  $url" -ForegroundColor White
+    Write-Host ''
+    Write-Host '  Keep this window open while you work. Close it to stop Sortinghat.' -ForegroundColor DarkGray
+    Write-Host ''
+
+    if (-not $NoBrowser) {
+        try { Start-Process $url | Out-Null }
+        catch { Write-Host '  Could not open your browser automatically - use the link above.' -ForegroundColor Yellow }
+    }
+}
+
+try {
+    Start-ShServer -UiRoot $uiRoot -SessionKey $sessionKey -OnReady $onReady -Port $Port
+} finally {
+    Write-Host ''
+    Write-Host '  Sortinghat has stopped.' -ForegroundColor Gray
+    if (-not $script:ShMockMode) {
+        try { Disconnect-MicrosoftTeams -ErrorAction SilentlyContinue } catch { }
+    }
+}

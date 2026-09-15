@@ -1,0 +1,3 @@
+# Run reports contain student names and addresses - never commit them.
+reports/
+*.csv

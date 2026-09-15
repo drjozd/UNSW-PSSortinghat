@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sortinghat</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=&#39;http://www.w3.org/2000/svg&#39; viewBox=&#39;0 0 24 24&#39;%3E%3Cpath d=&#39;M3 4h18l-7 8v7l-4 2v-9L3 4z&#39; fill=&#39;none&#39; stroke=&#39;%233d5afe&#39; stroke-width=&#39;2&#39; stroke-linejoin=&#39;round&#39;/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 4h18l-7 8v7l-4 2v-9L3 4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+    </svg>
+    <span class="brand-name">Sortinghat</span>
+    <span class="brand-sub">Teams private channels</span>
+  </div>
+  <div class="topbar-right">
+    <span id="mockBadge" class="pill pill-warn" hidden>Practice mode &mdash; nothing real changes</span>
+    <span id="accountChip" class="pill" hidden></span>
+    <button id="quitBtn" class="btn btn-ghost btn-sm" hidden>Finish</button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <nav class="rail" aria-label="Steps">
+    <ol id="stepList">
+      <li data-step="signin"><span class="dot">1</span><span class="label">Sign in</span></li>
+      <li data-step="team"><span class="dot">2</span><span class="label">Choose the team</span></li>
+      <li data-step="list"><span class="dot">3</span><span class="label">Class list</span></li>
+      <li data-step="sort"><span class="dot">4</span><span class="label">Sort into channels</span></li>
+      <li data-step="review"><span class="dot">5</span><span class="label">Review and apply</span></li>
+    </ol>
+    <div class="rail-foot">
+      <p class="hint">Nothing in Teams changes until you press <strong>Apply</strong> on step&nbsp;5.</p>
+    </div>
+  </nav>
+
+  <main id="main">
+
+    <!-- ── 1. Sign in ─────────────────────────────────────────────── -->
+    <section class="panel" data-panel="signin">
+      <h1>Sign in to Microsoft Teams</h1>
+      <p class="lede">Use the same account you use for Teams. Sortinghat can only do what
+        you can already do by hand &mdash; it never stores your password.</p>
+
+      <div class="card card-action">
+        <button id="signinBtn" class="btn btn-primary btn-lg">Sign in to Teams</button>
+        <p id="signinHelp" class="muted">A Microsoft sign-in window will open. It sometimes
+          appears <strong>behind</strong> this browser window &mdash; check your taskbar if you
+          do not see it.</p>
+        <div id="signinSpinner" class="working" hidden>
+          <span class="spinner"></span>
+          <span>Waiting for you to finish signing in&hellip;</span>
+        </div>
+      </div>
+
+      <div id="signinError" class="notice notice-error" hidden></div>
+
+      <details class="foot-note">
+        <summary>What Sortinghat needs to work</summary>
+        <ul>
+          <li>You must be an <strong>owner</strong> of the team you want to change.</li>
+          <li>Private channels can only contain people who are already in the team.
+            Sortinghat adds them to the team for you when they are missing.</li>
+          <li>Changes can take a minute or two to appear in the Teams app. That is Teams,
+            not Sortinghat &mdash; refresh the channel to see them.</li>
+        </ul>
+      </details>
+    </section>
+
+    <!-- ── 2. Team ────────────────────────────────────────────────── -->
+    <section class="panel" data-panel="team" hidden>
+      <h1>Choose the team</h1>
+      <p class="lede">These are the teams your account belongs to.</p>
+
+      <div class="field">
+        <label for="teamSearch">Find a team</label>
+        <input id="teamSearch" type="search" placeholder="Start typing a team name&hellip;" autocomplete="off">
+      </div>
+
+      <div id="teamList" class="team-list" role="listbox" aria-label="Your teams"></div>
+      <div id="teamLoading" class="working"><span class="spinner"></span><span>Loading your teams&hellip;</span></div>
+      <div id="teamError" class="notice notice-error" hidden></div>
+    </section>
+
+    <!-- ── 3. Class list ──────────────────────────────────────────── -->
+    <section class="panel" data-panel="list" hidden>
+      <h1>Who are you sorting?</h1>
+      <p class="lede">Everyone already in <strong id="listTeamName"></strong> is loaded.
+        Add your class list on top if some students are not in the team yet.</p>
+
+      <div class="two-col">
+        <div class="card">
+          <h2>Paste or drop a class list</h2>
+          <p class="muted">A spreadsheet export, or one student per line. Emails or zIDs both work.</p>
+          <div id="dropZone" class="dropzone">
+            <textarea id="pasteBox" spellcheck="false" placeholder="z5100101&#10;z5100102@ad.unsw.edu.au&#10;&#10;…or paste a CSV with headers such as:&#10;zID,Name,Group&#10;z5100101,Amara Okafor,Group 1"></textarea>
+            <div class="dropzone-hint">Drop a .csv or .txt file here</div>
+          </div>
+          <div class="row gap">
+            <input type="file" id="fileInput" accept=".csv,.txt,.tsv" hidden>
+            <button id="browseBtn" class="btn btn-ghost btn-sm">Choose a file&hellip;</button>
+            <label class="inline-field">
+              <span>zIDs become</span>
+              <input id="domainInput" type="text" value="ad.unsw.edu.au" spellcheck="false">
+            </label>
+          </div>
+          <div id="parseSummary" class="notice" hidden></div>
+        </div>
+
+        <div class="card">
+          <h2>Already in the team</h2>
+          <div id="teamSummary" class="stat-grid"></div>
+          <div id="channelSummary" class="channel-summary"></div>
+          <div id="loadProgress" class="working" hidden><span class="spinner"></span><span id="loadProgressText"></span></div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="toSortBtn" class="btn btn-primary btn-lg" disabled>Continue to sorting</button>
+        <button id="backToTeamBtn" class="btn btn-ghost">Choose a different team</button>
+      </div>
+    </section>
+
+    <!-- ── 4. Sort ────────────────────────────────────────────────── -->
+    <section class="panel panel-wide" data-panel="sort" hidden>
+      <div class="sort-head">
+        <div>
+          <h1>Sort into channels</h1>
+          <p class="lede" id="sortLede"></p>
+        </div>
+        <div class="sort-tools">
+          <input id="personSearch" type="search" placeholder="Find a person&hellip;" autocomplete="off">
+          <button id="addChannelBtn" class="btn btn-ghost btn-sm">+ New private channel</button>
+          <button id="distributeBtn" class="btn btn-ghost btn-sm">Spread evenly&hellip;</button>
+          <button id="autoGroupBtn" class="btn btn-ghost btn-sm" hidden>Use the group column</button>
+          <button id="resetBoardBtn" class="btn btn-ghost btn-sm">Undo all my changes</button>
+        </div>
+      </div>
+
+      <div id="selectionBar" class="selection-bar" hidden>
+        <span id="selectionCount"></span>
+        <label class="inline-field">
+          <span>Move to</span>
+          <select id="moveToSelect"></select>
+        </label>
+        <button id="clearSelectionBtn" class="btn btn-ghost btn-sm">Clear selection</button>
+      </div>
+
+      <div class="board">
+        <div class="board-col board-pool" data-channel="__pool__">
+          <header>
+            <h3>Not in a channel</h3>
+            <span class="count" id="poolCount">0</span>
+          </header>
+          <div class="cards" id="poolCards" data-dropzone="__pool__"></div>
+        </div>
+        <div class="board-scroll" id="boardScroll"></div>
+      </div>
+
+      <div class="actions">
+        <button id="toReviewBtn" class="btn btn-primary btn-lg">Review the changes</button>
+        <button id="backToListBtn" class="btn btn-ghost">Back to the class list</button>
+      </div>
+    </section>
+
+    <!-- ── 5. Review and apply ────────────────────────────────────── -->
+    <section class="panel" data-panel="review" hidden>
+      <h1>Review the changes</h1>
+      <p class="lede">This is everything Sortinghat will do, in order. Nothing has happened yet.</p>
+
+      <div id="reviewWarnings"></div>
+      <div id="reviewBody" class="review"></div>
+
+      <div class="actions" id="applyActions">
+        <button id="applyBtn" class="btn btn-danger btn-lg">Apply to Teams</button>
+        <button id="backToSortBtn" class="btn btn-ghost">Back to sorting</button>
+      </div>
+
+      <div id="applyPanel" class="card" hidden>
+        <h2 id="applyTitle">Applying changes</h2>
+        <div class="progress"><div id="progressBar" class="progress-bar"></div></div>
+        <p id="progressText" class="muted"></p>
+        <div id="applyLog" class="log" role="log" aria-live="polite"></div>
+        <div class="row gap" id="applyFooter" hidden>
+          <button id="retryBtn" class="btn btn-primary" hidden>Retry the failed steps</button>
+          <button id="downloadReportBtn" class="btn btn-ghost btn-sm">Download the report</button>
+          <button id="openReportsBtn" class="btn btn-ghost btn-sm">Open the reports folder</button>
+          <button id="reloadTeamBtn" class="btn btn-ghost btn-sm">Reload this team from Teams</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<dialog id="promptDialog" class="dialog">
+  <form method="dialog">
+    <h2 id="promptTitle">Title</h2>
+    <p id="promptMessage" class="muted"></p>
+    <label id="promptLabelWrap"><span id="promptLabel"></span>
+      <input id="promptInput" type="text" autocomplete="off"></label>
+    <menu>
+      <button value="cancel" class="btn btn-ghost">Cancel</button>
+      <button value="ok" id="promptOk" class="btn btn-primary">OK</button>
+    </menu>
+  </form>
+</dialog>
+
+<script src="app.js"></script>
+</body>
+</html>
