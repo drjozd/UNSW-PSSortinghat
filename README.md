@@ -40,8 +40,11 @@ You do **not** need an app registration, an API key, or anything from IT.
 
 ## Running it
 
-- **Windows:** double-click **`Launch Sortinghat.cmd`**.
-- **macOS:** double-click **`Launch Sortinghat.command`**.
+- **Windows:** double-click **`Windows - Start Sortinghat.cmd`**.
+- **macOS:** double-click **`Mac - Start Sortinghat.command`**.
+
+Never run it before? Open the **Practice run** file for your computer first —
+a fake class in a fake team, where nothing real can change.
 
 A console window (Terminal on a Mac) opens and stays open — that window *is* the
 program, so leave it alone while you work. Your browser opens on the Sortinghat
@@ -56,8 +59,8 @@ To stop: press **Finish** in the browser, or just close the console window.
 > tick **Unblock**, then extract.
 >
 > *macOS:* the first launch is blocked as coming from an unidentified developer.
-> Right-click `Launch Sortinghat.command`, choose **Open**, then **Open** again in
-> the dialog. You only do this once. (If macOS will not offer *Open* at all, run
+> Right-click `Mac - Start Sortinghat.command`, choose **Open**, then **Open**
+> again in the dialog. You only do this once. (If macOS will not offer *Open* at all, run
 > `xattr -dr com.apple.quarantine .` in the Sortinghat folder.)
 
 ---
@@ -124,8 +127,8 @@ report is saved to the `reports` folder next to the program.
 
 ## Practice mode
 
-Double-click **`Practice mode (no real changes).cmd`** to run against a fake class
-in a fake team. Nothing can reach Microsoft 365 — the real Teams commands are not
+Double-click the **Practice run** file for your computer to work against a fake
+class in a fake team. Nothing can reach Microsoft 365 — the real Teams commands are not
 even loaded. Use it to learn the tool, to show a colleague, or to check a change
 before doing it for real.
 
@@ -183,7 +186,7 @@ On Windows it is probably behind the browser — check the taskbar. On a Mac the
 is no Web Account Manager, so if the sign-in page does not come up Sortinghat
 falls back to a **device code**: switch to the Terminal window, which prints a
 short code and a link to enter it at. You can force that flow from the start with
-`./Start-Sortinghat.ps1 -DeviceCode`.
+`./app/Start-Sortinghat.ps1 -DeviceCode`.
 
 **macOS: "command not found: pwsh".**
 PowerShell 7 is not installed yet — see *Before you start* above. The launcher
@@ -210,17 +213,28 @@ skipped rather than repeated.
 
 ## What is in the folder
 
+Only the things you might double-click sit at the top level:
+
 ```
-Launch Sortinghat.cmd              double-click this on Windows
-Launch Sortinghat.command          double-click this on macOS
-Practice mode (no real changes).*  rehearsal with a fake class (.cmd / .command)
+START HERE.txt                        read this first
+Windows - Start Sortinghat.cmd        double-click this on Windows
+Windows - Practice run (changes nothing).cmd
+Mac - Start Sortinghat.command        double-click this on a Mac
+Mac - Practice run (changes nothing).command
+README.md                             this file
+reports/                              a CSV per run, created the first time you apply
+app/                                  the program itself - nothing here to run
+```
+
+Inside `app/`:
+
+```
 Start-Sortinghat.ps1               checks the module, starts the local server
-src/Server.ps1                     a small web server bound to 127.0.0.1 only
-src/Api.ps1                        the JSON endpoints the page calls
-src/TeamsApi.ps1                   every call into the MicrosoftTeams module
-src/MockTeams.ps1                  the fake tenant used by practice mode
-src/ui/                            the page itself (HTML, CSS, one JavaScript file)
-reports/                           a CSV per run, created the first time you apply
+Server.ps1                         a small web server bound to 127.0.0.1 only
+Api.ps1                            the JSON endpoints the page calls
+TeamsApi.ps1                       every call into the MicrosoftTeams module
+MockTeams.ps1                      the fake tenant used by the practice run
+ui/                                the page itself (HTML, CSS, one JavaScript file)
 ```
 
 No files are installed anywhere else. Delete the folder and Sortinghat is gone.

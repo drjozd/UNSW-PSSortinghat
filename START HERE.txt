@@ -1,0 +1,64 @@
+SORTINGHAT
+Sort a class into Microsoft Teams private channels.
+
+
+WHAT TO DOUBLE-CLICK
+--------------------
+
+  On Windows        Windows - Start Sortinghat.cmd
+  On a Mac          Mac - Start Sortinghat.command
+
+Never used it before? Open the "Practice run" file for your computer
+instead. It uses a fake class in a fake team, so nothing real can
+change while you find your way around.
+
+
+WHAT HAPPENS
+------------
+
+A console window opens and stays open. That window IS the program, so
+leave it alone while you work. Your browser opens on the Sortinghat
+page and takes you through five steps: sign in, choose the team, load
+your class list, drag students into channels, review and apply.
+
+Nothing in Teams changes until you press Apply on the last step.
+
+
+BEFORE THE FIRST RUN
+--------------------
+
+  Windows     Nothing to install. If a file refuses to open, right-click
+              the zip, choose Properties, tick Unblock, and extract it
+              again.
+
+  Mac         Install PowerShell once:
+
+                  brew install --cask powershell
+
+              The first launch is blocked as coming from an unidentified
+              developer. Right-click the .command file, choose Open, then
+              Open again in the dialog. Once only.
+
+You also need to be an OWNER of the team you want to change. Sortinghat
+can only do what you could already do by hand in Teams.
+
+
+THE app FOLDER
+--------------
+
+That is the program itself. There is nothing in there to run.
+
+After your first real run you will also see a reports folder, holding a
+record of every change, one file per run.
+
+
+MORE DETAIL
+-----------
+
+README.md has the full instructions, including what to do when something
+goes wrong.
+
+
+(c) 2026 - Developed by Giuseppe Daniele Ibello, UNSW Business School
+PhD Candidate in Information Systems & Technology Management
+g.ibello@unsw.edu.au - giuseppe.ibello06@gmail.com

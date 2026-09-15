@@ -1,7 +1,8 @@
 #!/bin/bash
 # ---------------------------------------------------------------
-#  Sortinghat - double-click this file to start (macOS or Linux).
-#  Windows users: use "Launch Sortinghat.cmd" instead.
+#  Sortinghat - double-click this file to start (macOS).
+#  The program itself lives in the app folder; nothing in there
+#  needs to be run by hand.
 # ---------------------------------------------------------------
 cd "$(dirname "$0")" || exit 1
 
@@ -16,7 +17,7 @@ if ! command -v pwsh >/dev/null 2>&1; then
 
   Otherwise download the .pkg for your Mac from
   https://github.com/PowerShell/PowerShell/releases
-  (choose the "osx-arm64.pkg" on Apple Silicon, "osx-x64.pkg" on Intel).
+  (choose "osx-arm64.pkg" on Apple Silicon, "osx-x64.pkg" on Intel).
 
   Then double-click this file again.
 
@@ -25,7 +26,7 @@ MSG
   exit 1
 fi
 
-pwsh -NoProfile -File "./Start-Sortinghat.ps1" "$@"
+pwsh -NoProfile -File "./app/Start-Sortinghat.ps1" "$@"
 status=$?
 if [ $status -ne 0 ]; then
   echo
