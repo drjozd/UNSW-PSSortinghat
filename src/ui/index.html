@@ -20,6 +20,7 @@
   <div class="topbar-right">
     <span id="mockBadge" class="pill pill-warn" hidden>Practice mode &mdash; nothing real changes</span>
     <span id="accountChip" class="pill" hidden></span>
+    <button id="themeBtn" class="btn btn-ghost btn-sm" title="Switch between following your system, light, and dark">Theme: auto</button>
     <button id="quitBtn" class="btn btn-ghost btn-sm" hidden>Finish</button>
   </div>
 </header>
@@ -142,11 +143,19 @@
         </div>
       </div>
 
+      <p class="board-hint">Drag a name to move it. Hold <kbd>Ctrl</kbd> while dragging to put
+        someone in a second channel as well. The <strong>&hellip;</strong> on each card (or a
+        right-click) opens their channel list.</p>
+
       <div id="selectionBar" class="selection-bar" hidden>
         <span id="selectionCount"></span>
         <label class="inline-field">
           <span>Move to</span>
           <select id="moveToSelect"></select>
+        </label>
+        <label class="inline-field">
+          <span>Also add to</span>
+          <select id="addToSelect"></select>
         </label>
         <button id="clearSelectionBtn" class="btn btn-ghost btn-sm">Clear selection</button>
       </div>
@@ -198,6 +207,7 @@
   </main>
 </div>
 
+<div id="memberMenu" class="menu" hidden role="menu"></div>
 <div id="toast" class="toast" hidden></div>
 
 <dialog id="promptDialog" class="dialog">

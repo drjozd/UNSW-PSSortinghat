@@ -39,6 +39,28 @@ function toast(message, ms) {
   toast._t = setTimeout(() => { el.hidden = true; }, ms || 3200);
 }
 
+/* ── theme ──────────────────────────────────────────────────────────────── */
+
+const THEMES = ['auto', 'light', 'dark'];
+
+function applyTheme(mode) {
+  if (mode === 'auto') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', mode);
+  const btn = document.getElementById('themeBtn');
+  if (btn) btn.textContent = 'Theme: ' + mode;
+}
+
+let themeMode = 'auto';
+try { themeMode = localStorage.getItem('sortinghat-theme') || 'auto'; } catch (e) { /* private window */ }
+if (THEMES.indexOf(themeMode) < 0) themeMode = 'auto';
+applyTheme(themeMode);
+
+document.getElementById('themeBtn').addEventListener('click', () => {
+  themeMode = THEMES[(THEMES.indexOf(themeMode) + 1) % THEMES.length];
+  applyTheme(themeMode);
+  try { localStorage.setItem('sortinghat-theme', themeMode); } catch (e) { /* nothing to do */ }
+});
+
 async function api(method, path, body) {
   const res = await fetch(path, {
     method,
@@ -168,11 +190,16 @@ function renderTeams() {
       'No teams found for your account. If you expect one here, check you are signed in with your staff account.'}</p>`;
     return;
   }
-  box.innerHTML = list.map(t => `
-    <button class="team-item" data-id="${esc(t.groupId)}">
+  box.innerHTML = list.map(t => {
+    const desc = String(t.description || '').trim();
+    const bits = [];
+    if (desc && desc !== String(t.displayName).trim()) bits.push(desc);
+    if (t.archived) bits.push('archived');
+    return `<button class="team-item" data-id="${esc(t.groupId)}">
       <span class="name">${esc(t.displayName)}</span>
-      <span class="meta">${esc(t.description || 'No description')}${t.archived ? ' &middot; archived' : ''}</span>
-    </button>`).join('');
+      ${bits.length ? `<span class="meta">${esc(bits.join(' \u00b7 '))}</span>` : ''}
+    </button>`;
+  }).join('');
 }
 
 $('#teamSearch').addEventListener('input', renderTeams);
@@ -494,6 +521,12 @@ function allAssigned() {
   return set;
 }
 
+function channelsOf(key) {
+  const names = [];
+  S.assign.forEach((set, name) => { if (set.has(key)) names.push(name); });
+  return names;
+}
+
 function poolKeys() {
   const assigned = allAssigned();
   const me = meKey();
@@ -511,11 +544,17 @@ function personCard(key, colName) {
   const p = S.roster.get(key);
   if (!p) return '';
   const locked = colName !== '__pool__' && (S.locked.get(colName) || new Set()).has(key);
+  const memberships = channelsOf(key).length;
+
   const tags = [];
   if (locked) tags.push('<span class="tag tag-owner">owner</span>');
   else if (!p.inTeam) tags.push('<span class="tag tag-newteam">joins team</span>');
   else if (!p.onList && S.hasImportedList && !p.isTeamOwner) tags.push('<span class="tag tag-extra">not on list</span>');
   else if (p.isTeamOwner) tags.push('<span class="tag tag-extra">staff</span>');
+  // Channel owners are in every channel they own, so the count is noise on them.
+  if (memberships > 1 && !locked) {
+    tags.push(`<span class="tag tag-multi" title="In ${memberships} channels">in ${memberships}</span>`);
+  }
 
   const hidden = S.filter && !(`${p.name} ${p.upn}`.toLowerCase().includes(S.filter)) ? ' filtered-out' : '';
   const sel = S.selection.has(key) ? ' selected' : '';
@@ -523,7 +562,9 @@ function personCard(key, colName) {
   return `<div class="card-person${sel}${hidden}${locked ? ' locked' : ''}"
        draggable="${locked ? 'false' : 'true'}" data-key="${esc(key)}" data-col="${esc(colName)}"
        title="${esc(p.name)} - ${esc(p.upn)}">
-    <span class="pname">${esc(p.name)}</span>${tags.join('')}
+    <span class="pname">${esc(p.name)}</span>
+    <span class="card-tags">${tags.join('')}</span>
+    <button class="card-menu-btn" data-menu="${esc(key)}" aria-label="Channels for ${esc(p.name)}">&hellip;</button>
     <span class="pid">${esc(p.upn)}</span>
   </div>`;
 }
@@ -564,6 +605,12 @@ function renderBoard() {
 
   $('#autoGroupBtn').hidden = !S.hasGroupColumn;
   renderSelectionBar();
+  if (S.menuState) renderMemberMenu();
+}
+
+function channelOptions(placeholder) {
+  return `<option value="">${placeholder}</option>` +
+    S.channels.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('');
 }
 
 function renderSelectionBar() {
@@ -571,10 +618,47 @@ function renderSelectionBar() {
   bar.hidden = S.selection.size === 0;
   if (S.selection.size === 0) return;
   $('#selectionCount').textContent = `${plural(S.selection.size, 'person', 'people')} selected`;
-  $('#moveToSelect').innerHTML =
-    '<option value="">Choose a channel…</option>' +
-    S.channels.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('') +
+  $('#moveToSelect').innerHTML = channelOptions('Choose a channel…') +
     '<option value="__pool__">Not in a channel</option>';
+  $('#addToSelect').innerHTML = channelOptions('Choose a channel…');
+}
+
+/* membership ------------------------------------------------------------ */
+
+function isLockedIn(key, channel) {
+  return (S.locked.get(channel) || new Set()).has(key);
+}
+
+/* Put these people in `channel` and take them out of every other one. */
+function moveKeys(keys, target) {
+  keys.forEach(key => {
+    S.assign.forEach((set, name) => {
+      if (isLockedIn(key, name)) return;
+      set.delete(key);
+    });
+    if (target !== '__pool__' && S.assign.has(target)) S.assign.get(target).add(key);
+  });
+}
+
+/* Put these people in `channel` as well, leaving other channels alone. */
+function addKeys(keys, target) {
+  if (!S.assign.has(target)) return;
+  keys.forEach(key => S.assign.get(target).add(key));
+}
+
+function setMembership(keys, channel, on) {
+  const set = S.assign.get(channel);
+  if (!set) return;
+  keys.forEach(key => {
+    if (on) set.add(key);
+    else if (!isLockedIn(key, channel)) set.delete(key);
+  });
+}
+
+function removeFromEverything(keys) {
+  keys.forEach(key => S.assign.forEach((set, name) => {
+    if (!isLockedIn(key, name)) set.delete(key);
+  }));
 }
 
 /* selection ------------------------------------------------------------- */
@@ -584,6 +668,7 @@ let lastClickedKey = null;
 $('#main').addEventListener('click', e => {
   const card = e.target.closest('.card-person');
   if (!card || !$('[data-panel="sort"]').contains(card)) return;
+  if (e.target.closest('.card-menu-btn')) return;   // handled separately
   const key = card.dataset.key;
 
   if (e.shiftKey && lastClickedKey) {
@@ -607,12 +692,133 @@ $('#main').addEventListener('click', e => {
 $('#clearSelectionBtn').addEventListener('click', () => { S.selection.clear(); renderBoard(); });
 
 $('#moveToSelect').addEventListener('change', e => {
-  const target = e.target.value;
-  if (!target) return;
-  moveKeys(Array.from(S.selection), target);
+  if (!e.target.value) return;
+  moveKeys(Array.from(S.selection), e.target.value);
   S.selection.clear();
   renderBoard();
 });
+
+$('#addToSelect').addEventListener('change', e => {
+  if (!e.target.value) return;
+  const n = S.selection.size;
+  addKeys(Array.from(S.selection), e.target.value);
+  toast(`${plural(n, 'person', 'people')} are now in "${e.target.value}" as well.`);
+  S.selection.clear();
+  renderBoard();
+});
+
+/* the per-person channel menu ------------------------------------------- */
+
+function renderMemberMenu() {
+  const { keys } = S.menuState;
+  const menu = $('#memberMenu');
+  const many = keys.length > 1;
+  const p = S.roster.get(keys[0]);
+
+  const head = many
+    ? `<div class="mh-name">${plural(keys.length, 'person', 'people')} selected</div>
+       <div class="mh-sub">Ticking a channel applies to all of them</div>`
+    : `<div class="mh-name">${esc(p ? p.name : keys[0])}</div>
+       <div class="mh-sub">${esc(p ? p.upn : '')}</div>`;
+
+  const rows = S.channels.map(c => {
+    const set = S.assign.get(c.name) || new Set();
+    const inCount = keys.filter(k => set.has(k)).length;
+    const all = inCount === keys.length;
+    const some = inCount > 0 && !all;
+    const locked = keys.some(k => isLockedIn(k, c.name));
+    return `<button class="menu-row${all ? ' on' : ''}" data-channel="${esc(c.name)}"
+        ${locked && all ? 'disabled title="Channel owners cannot be removed by Sortinghat"' : ''}>
+      <span class="mr-box">${all ? '&check;' : (some ? '&ndash;' : '')}</span>
+      <span class="mr-name">${esc(c.name)}</span>
+      <span class="mr-only" data-only="${esc(c.name)}" title="Put them in this channel only">only</span>
+    </button>`;
+  }).join('');
+
+  menu.innerHTML =
+    `<div class="menu-head">${head}</div>` +
+    (S.channels.length
+      ? `<div class="menu-label">In these channels</div>${rows}
+         <div class="menu-sep"></div>
+         <button class="menu-row danger" data-act="none"><span class="mr-box"></span>
+           <span class="mr-name">Take out of every channel</span></button>`
+      : '<div class="menu-label">No private channels yet</div>');
+  menu.hidden = false;
+}
+
+function openMemberMenu(x, y, keys) {
+  const list = keys.filter(k => S.roster.has(k));
+  if (!list.length) return;
+  S.menuState = { keys: list };
+  renderMemberMenu();
+
+  const menu = $('#memberMenu');
+  const w = menu.offsetWidth, h = menu.offsetHeight;
+  const left = Math.min(x, window.scrollX + document.documentElement.clientWidth - w - 8);
+  const top = Math.min(y, window.scrollY + document.documentElement.clientHeight - h - 8);
+  menu.style.left = Math.max(8, left) + 'px';
+  menu.style.top = Math.max(8, top) + 'px';
+}
+
+function closeMemberMenu() {
+  S.menuState = null;
+  $('#memberMenu').hidden = true;
+}
+
+function menuTargets(key) {
+  return S.selection.has(key) && S.selection.size > 1 ? Array.from(S.selection) : [key];
+}
+
+$('#main').addEventListener('click', e => {
+  const btn = e.target.closest('.card-menu-btn');
+  if (!btn) return;
+  e.stopPropagation();
+  const r = btn.getBoundingClientRect();
+  openMemberMenu(r.left + window.scrollX, r.bottom + window.scrollY + 4, menuTargets(btn.dataset.menu));
+});
+
+$('#main').addEventListener('contextmenu', e => {
+  const card = e.target.closest('.card-person');
+  if (!card || !$('[data-panel="sort"]').contains(card)) return;
+  e.preventDefault();
+  openMemberMenu(e.pageX, e.pageY, menuTargets(card.dataset.key));
+});
+
+$('#memberMenu').addEventListener('click', e => {
+  if (!S.menuState) return;
+  const keys = S.menuState.keys;
+
+  const only = e.target.closest('[data-only]');
+  if (only) {
+    moveKeys(keys, only.dataset.only);
+    closeMemberMenu();
+    S.selection.clear();
+    return renderBoard();
+  }
+
+  const row = e.target.closest('.menu-row');
+  if (!row || row.disabled) return;
+
+  if (row.dataset.act === 'none') {
+    removeFromEverything(keys);
+    closeMemberMenu();
+    S.selection.clear();
+    return renderBoard();
+  }
+
+  const channel = row.dataset.channel;
+  const set = S.assign.get(channel) || new Set();
+  const all = keys.every(k => set.has(k));
+  setMembership(keys, channel, !all);
+  renderBoard();
+});
+
+document.addEventListener('click', e => {
+  if (!S.menuState) return;
+  if (e.target.closest('#memberMenu') || e.target.closest('.card-menu-btn')) return;
+  closeMemberMenu();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMemberMenu(); });
 
 /* drag and drop --------------------------------------------------------- */
 
@@ -621,11 +827,12 @@ let dragKeys = [];
 $('#main').addEventListener('dragstart', e => {
   const card = e.target.closest('.card-person');
   if (!card || card.classList.contains('locked')) return;
+  closeMemberMenu();
   const key = card.dataset.key;
   dragKeys = S.selection.has(key) && S.selection.size > 1 ? Array.from(S.selection) : [key];
   card.classList.add('dragging');
   try {
-    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.effectAllowed = 'copyMove';
     e.dataTransfer.setData('text/plain', dragKeys.join(','));
   } catch (err) { /* older browsers */ }
 });
@@ -636,11 +843,14 @@ $('#main').addEventListener('dragend', e => {
   $$('.board-col.drag-over').forEach(c => c.classList.remove('drag-over'));
 });
 
+const wantsCopy = e => e.ctrlKey || e.altKey || e.metaKey;
+
 $('#main').addEventListener('dragover', e => {
   const zone = e.target.closest('[data-dropzone]');
   if (!zone || !dragKeys.length) return;
   e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
+  e.dataTransfer.dropEffect =
+    (wantsCopy(e) && zone.dataset.dropzone !== '__pool__') ? 'copy' : 'move';
   const col = zone.closest('.board-col');
   $$('.board-col.drag-over').forEach(c => { if (c !== col) c.classList.remove('drag-over'); });
   if (col) col.classList.add('drag-over');
@@ -655,21 +865,19 @@ $('#main').addEventListener('drop', e => {
     const text = (e.dataTransfer.getData('text/plain') || '').trim();
     keys = text ? text.split(',') : [];
   }
-  moveKeys(keys, zone.dataset.dropzone);
+  const target = zone.dataset.dropzone;
+
+  if (wantsCopy(e) && target !== '__pool__') {
+    addKeys(keys, target);
+    toast(`${plural(keys.length, 'person', 'people')} added to "${target}" as well.`);
+  } else {
+    moveKeys(keys, target);
+  }
+
   dragKeys = [];
   S.selection.clear();
   renderBoard();
 });
-
-function moveKeys(keys, target) {
-  keys.forEach(key => {
-    S.assign.forEach((set, name) => {
-      if ((S.locked.get(name) || new Set()).has(key)) return;
-      set.delete(key);
-    });
-    if (target !== '__pool__' && S.assign.has(target)) S.assign.get(target).add(key);
-  });
-}
 
 /* board tools ----------------------------------------------------------- */
 
@@ -684,6 +892,7 @@ $('#boardScroll').addEventListener('click', async e => {
   const name = btn.closest('.board-col').dataset.channel;
   const channel = S.channels.find(c => c.name === name);
   if (!channel) return;
+  closeMemberMenu();
 
   if (btn.dataset.act === 'delete') {
     S.channels = S.channels.filter(c => c.name !== name);
@@ -808,10 +1017,12 @@ $('#resetBoardBtn').addEventListener('click', async () => {
   S.channels.forEach(c => S.assign.set(c.name, new Set(S.original.get(c.name) || [])));
   Array.from(S.original.keys()).forEach(n => { if (!S.assign.has(n)) { S.original.delete(n); S.locked.delete(n); } });
   S.selection.clear();
+  closeMemberMenu();
   renderBoard();
 });
 
-$('#toReviewBtn').addEventListener('click', () => goto('review'));
+$('#toReviewBtn').addEventListener('click', () => { closeMemberMenu(); goto('review'); });
+
 
 /* ── 5. review and apply ────────────────────────────────────────────────── */
 

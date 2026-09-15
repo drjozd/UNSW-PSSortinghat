@@ -81,6 +81,11 @@ fills every channel in one click.
 
 - **Click, Shift-click, Ctrl-click** to select several people, then drag them all
   at once or use the **Move to** box (handy if dragging is awkward).
+- **Someone in more than one channel** — hold <kbd>Ctrl</kbd> while dragging to add
+  them to a second channel instead of moving them, or open their channel list with
+  the **…** on the card (a right-click does the same) and tick every channel they
+  belong to. A card shows an *in 2* badge when a person is in more than one. The
+  **only** button beside a channel in that list puts them in that one alone.
 - **+ New private channel** — created when you apply, not before.
 - **Spread evenly** — asks how many channels and what to call them, then deals the
   unsorted people out round-robin. Existing channels with those names are reused.
@@ -89,6 +94,9 @@ fills every channel in one click.
 
 Owners of a channel show a padlock-ish **owner** tag and cannot be dragged, because
 Teams will not let the last owner of a private channel be removed.
+
+The **Theme** button in the top right switches between following your system,
+always light, and always dark. It remembers your choice.
 
 **5. Review and apply.** Every single change is listed in plain English before
 anything happens, along with warnings worth reading — especially removals, which
