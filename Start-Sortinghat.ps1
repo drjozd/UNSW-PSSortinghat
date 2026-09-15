@@ -18,6 +18,10 @@
     Run against a fake tenant instead of Microsoft Teams. Nothing real is
     touched. Useful for practising, demonstrating, or testing changes.
 
+.PARAMETER DeviceCode
+    Sign in with a device code shown in this window instead of a browser
+    control. Useful on macOS, or anywhere the sign-in window will not appear.
+
 .EXAMPLE
     .\Start-Sortinghat.ps1
 
@@ -28,7 +32,8 @@
 param(
     [int]$Port = 0,
     [switch]$NoBrowser,
-    [switch]$Mock
+    [switch]$Mock,
+    [switch]$DeviceCode
 )
 
 $ErrorActionPreference = 'Stop'
@@ -39,6 +44,37 @@ if (-not $script:ShRoot) { $script:ShRoot = (Get-Location).Path }
 $script:ShMockMode = [bool]$Mock -or ($env:SORTINGHAT_MOCK -eq '1')
 $script:ShTeamsModuleName = 'MicrosoftTeams'
 $script:ShTeamsModuleVersion = ''
+$script:ShForceDeviceCode = [bool]$DeviceCode
+
+# $IsWindows only exists in PowerShell 6+. On Windows PowerShell 5.1 it is
+# undefined, and that only ever runs on Windows anyway.
+$script:ShIsWindows = $true
+$script:ShIsMacOS = $false
+if ($PSVersionTable.PSVersion.Major -ge 6) {
+    $script:ShIsWindows = [bool]$IsWindows
+    $script:ShIsMacOS = [bool]$IsMacOS
+}
+$script:ShPlatform = if ($script:ShIsMacOS) { 'macos' } elseif ($script:ShIsWindows) { 'windows' } else { 'linux' }
+
+function Invoke-ShOpenExternal {
+    <# Open a URL or folder in whatever the desktop uses. #>
+    param([Parameter(Mandatory = $true)][string]$Target)
+    try {
+        # A native command that fails does not throw, so check the exit code too.
+        if ($script:ShIsMacOS) {
+            & /usr/bin/open $Target 2>$null | Out-Null
+            return ($LASTEXITCODE -eq 0)
+        }
+        if (-not $script:ShIsWindows) {
+            & xdg-open $Target 2>$null | Out-Null
+            return ($LASTEXITCODE -eq 0)
+        }
+        Start-Process $Target | Out-Null
+        return $true
+    } catch {
+        return $false
+    }
+}
 
 function Write-ShBanner {
     Write-Host ''
@@ -53,8 +89,16 @@ function Write-ShBanner {
 }
 
 function Assert-ShPowerShellVersion {
-    if ($PSVersionTable.PSVersion.Major -lt 5) {
-        throw "Sortinghat needs Windows PowerShell 5.1 or later. This is version $($PSVersionTable.PSVersion)."
+    $v = $PSVersionTable.PSVersion
+    if ($script:ShIsWindows) {
+        if ($v.Major -lt 5) {
+            throw "Sortinghat needs Windows PowerShell 5.1 or later. This is version $v."
+        }
+    } else {
+        # Microsoft supports the Teams module on PowerShell 7.2+ off Windows.
+        if ($v.Major -lt 7 -or ($v.Major -eq 7 -and $v.Minor -lt 2)) {
+            throw "On $($script:ShPlatform) the Microsoft Teams module needs PowerShell 7.2 or later. This is version $v. Install it with: brew install --cask powershell"
+        }
     }
 }
 
@@ -128,8 +172,9 @@ $onReady = {
     Write-Host ''
 
     if (-not $NoBrowser) {
-        try { Start-Process $url | Out-Null }
-        catch { Write-Host '  Could not open your browser automatically - use the link above.' -ForegroundColor Yellow }
+        if (-not (Invoke-ShOpenExternal -Target $url)) {
+            Write-Host '  Could not open your browser automatically - use the link above.' -ForegroundColor Yellow
+        }
     }
 }
 

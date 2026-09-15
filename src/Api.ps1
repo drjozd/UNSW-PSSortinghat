@@ -43,6 +43,7 @@ function Invoke-ShRoute {
                 moduleName   = $script:ShTeamsModuleName
                 moduleVersion= $script:ShTeamsModuleVersion
                 mock         = [bool]$script:ShMockMode
+                platform     = $script:ShPlatform
             }
         }
 
@@ -156,7 +157,7 @@ function Invoke-ShRoute {
         'POST /api/open-reports' {
             try {
                 $folder = Join-Path $script:ShRoot 'reports'
-                if (Test-Path -LiteralPath $folder) { Start-Process $folder | Out-Null }
+                if (Test-Path -LiteralPath $folder) { Invoke-ShOpenExternal -Target $folder | Out-Null }
                 return @{ ok = $true }
             } catch {
                 return @{ ok = $false; error = (Get-ShErrorText -ErrorRecord $_) }

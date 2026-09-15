@@ -122,6 +122,15 @@ async function refreshState() {
   S.connected = !!st.connected;
   S.account = st.account || '';
   S.mock = !!st.mock;
+  S.platform = st.platform || 'windows';
+
+  $('#signinHelp').innerHTML = S.platform === 'windows'
+    ? 'A Microsoft sign-in window will open. It sometimes appears <strong>behind</strong> ' +
+      'this browser window &mdash; check your taskbar if you do not see it.'
+    : 'A Microsoft sign-in page will open. If it does not, Sortinghat falls back to a ' +
+      '<strong>device code</strong>, which is printed in the Terminal window that started it &mdash; ' +
+      'switch to that window and follow the instructions there.';
+
   $('#mockBadge').hidden = !S.mock;
   $('#accountChip').hidden = !S.connected;
   $('#accountChip').textContent = S.account;

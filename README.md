@@ -22,7 +22,13 @@ team.
 
 You need three things:
 
-1. **Windows** with PowerShell 5.1 (every Windows 10 and 11 machine has it) or PowerShell 7.
+1. **PowerShell.**
+   - *Windows:* nothing to do. Windows 10 and 11 both ship with PowerShell 5.1.
+   - *macOS:* PowerShell 7 is not included, so install it once —
+     `brew install --cask powershell`, or the `.pkg` from
+     [the PowerShell releases page](https://github.com/PowerShell/PowerShell/releases)
+     (`osx-arm64` on Apple Silicon, `osx-x64` on Intel). Microsoft supports the
+     Teams module on PowerShell 7.2 and later on every platform.
 2. To be an **owner** of the team you want to change. Sortinghat can only do what
    you could already do by hand in Teams.
 3. An internet connection. The first run installs Microsoft's own Teams PowerShell
@@ -34,16 +40,25 @@ You do **not** need an app registration, an API key, or anything from IT.
 
 ## Running it
 
-Double-click **`Launch Sortinghat.cmd`**.
+- **Windows:** double-click **`Launch Sortinghat.cmd`**.
+- **macOS:** double-click **`Launch Sortinghat.command`**.
 
-A black console window opens and stays open — that window *is* the program, so
-leave it alone while you work. Your browser opens on the Sortinghat page.
+A console window (Terminal on a Mac) opens and stays open — that window *is* the
+program, so leave it alone while you work. Your browser opens on the Sortinghat
+page.
 
 To stop: press **Finish** in the browser, or just close the console window.
 
-> **First time only:** Windows may say the files came from the internet. Right-click
-> the zip *before* extracting it, choose **Properties**, tick **Unblock**, then
-> extract. If you have already extracted it, see *When something goes wrong* below.
+> **First time only.** Both operating systems treat files downloaded from the
+> internet with suspicion.
+>
+> *Windows:* right-click the zip *before* extracting it, choose **Properties**,
+> tick **Unblock**, then extract.
+>
+> *macOS:* the first launch is blocked as coming from an unidentified developer.
+> Right-click `Launch Sortinghat.command`, choose **Open**, then **Open** again in
+> the dialog. You only do this once. (If macOS will not offer *Open* at all, run
+> `xattr -dr com.apple.quarantine .` in the Sortinghat folder.)
 
 ---
 
@@ -164,8 +179,15 @@ If that still fails, your network is blocking `www.powershellgallery.com` and IT
 will need to allow it, or install the module for you.
 
 **No sign-in window appears.**
-It is probably behind the browser — check the taskbar. If you signed in to Teams
-PowerShell earlier in the same session it may not ask again at all.
+On Windows it is probably behind the browser — check the taskbar. On a Mac there
+is no Web Account Manager, so if the sign-in page does not come up Sortinghat
+falls back to a **device code**: switch to the Terminal window, which prints a
+short code and a link to enter it at. You can force that flow from the start with
+`./Start-Sortinghat.ps1 -DeviceCode`.
+
+**macOS: "command not found: pwsh".**
+PowerShell 7 is not installed yet — see *Before you start* above. The launcher
+prints the same instructions.
 
 **"You are not an owner of this team."**
 Ask an existing owner to make you one in Teams (team → ⋯ → Manage team → Members).
@@ -189,8 +211,9 @@ skipped rather than repeated.
 ## What is in the folder
 
 ```
-Launch Sortinghat.cmd              double-click this
-Practice mode (no real changes).cmd rehearsal with a fake class
+Launch Sortinghat.cmd              double-click this on Windows
+Launch Sortinghat.command          double-click this on macOS
+Practice mode (no real changes).*  rehearsal with a fake class (.cmd / .command)
 Start-Sortinghat.ps1               checks the module, starts the local server
 src/Server.ps1                     a small web server bound to 127.0.0.1 only
 src/Api.ps1                        the JSON endpoints the page calls
@@ -210,3 +233,10 @@ Class lists never leave your computer except in the calls to Microsoft that add
 people to channels. Nothing is uploaded, logged remotely, or sent to any third
 party. The `reports` folder does contain student names and addresses, so treat it
 like any other class list — it lives wherever you put the Sortinghat folder.
+
+---
+
+© 2026 · Developed by **Giuseppe Daniele Ibello**, UNSW Business School — PhD
+Candidate in Information Systems & Technology Management
+· [g.ibello@unsw.edu.au](mailto:g.ibello@unsw.edu.au)
+· [giuseppe.ibello06@gmail.com](mailto:giuseppe.ibello06@gmail.com)

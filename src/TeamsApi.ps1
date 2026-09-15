@@ -83,11 +83,31 @@ function Get-ShConnection {
 
 function Invoke-ShConnect {
     Write-Host ''
-    Write-Host '  A Microsoft sign-in window is opening.' -ForegroundColor Cyan
-    Write-Host '  If you cannot see it, check behind this window or on the taskbar.' -ForegroundColor DarkGray
+    if ($script:ShForceDeviceCode) {
+        Write-Host '  Sign in with the device code printed below.' -ForegroundColor Cyan
+    } else {
+        Write-Host '  A Microsoft sign-in window is opening.' -ForegroundColor Cyan
+        Write-Host '  If you cannot see it, check behind this window or on the taskbar.' -ForegroundColor DarkGray
+    }
     Write-Host ''
 
-    $context = Connect-MicrosoftTeams -ErrorAction Stop
+    if ($script:ShForceDeviceCode) {
+        $context = Connect-MicrosoftTeams -UseDeviceAuthentication -ErrorAction Stop
+    } else {
+        try {
+            $context = Connect-MicrosoftTeams -ErrorAction Stop
+        } catch {
+            # Off Windows there is no Web Account Manager, and the browser control
+            # does not always come up. The device code flow is the documented
+            # fallback, and it prints its instructions in this window.
+            if ($script:ShIsWindows) { throw }
+            Write-Host ''
+            Write-Host '  The sign-in window did not work. Falling back to a device code.' -ForegroundColor Yellow
+            Write-Host '  Follow the instructions printed here, then return to your browser.' -ForegroundColor Yellow
+            Write-Host ''
+            $context = Connect-MicrosoftTeams -UseDeviceAuthentication -ErrorAction Stop
+        }
+    }
 
     $account = ''
     if ($context) {
