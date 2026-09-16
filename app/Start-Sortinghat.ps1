@@ -38,7 +38,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$script:ShVersion = '1.1.0'
+$script:ShVersion = '1.1.1'
 
 # The program lives in app\ ; reports and anything the lecturer should find go
 # in the folder above it, next to the launchers.

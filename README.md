@@ -196,6 +196,19 @@ prints the same instructions.
 Ask an existing owner to make you one in Teams (team → ⋯ → Manage team → Members).
 Nothing else will work until then.
 
+**Creating a channel failed, but the channel is there in Teams.**
+Teams sometimes returns an error for a channel it has in fact just created.
+Sortinghat now checks whether the channel exists before calling it a failure, so
+this should report as *already in place* rather than red. If you are on an older
+copy and saw it fail: look in Teams first — if the channel is there, the run
+worked and pressing **Retry** will only produce a second, confusing error.
+
+**Creating a channel failed with a "BadRequest" from the templates backend.**
+Almost always the name. Teams reserves the name of a **deleted** channel
+permanently — by design, for information-protection reasons — so a channel called
+*Group 3* that was deleted last term can never be recreated under that name. Use a
+variant (*Group 3b*, *Group 3 T3*) instead.
+
 **A step failed with "user must first be a member of the team".**
 Someone was added to the team and to a channel in the same run, and Microsoft had
 not finished provisioning them. Press **Retry the failed steps** — a minute later

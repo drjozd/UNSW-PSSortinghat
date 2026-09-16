@@ -12,12 +12,37 @@ $script:ShTenantId   = $null
 $script:ShConnected  = $false
 
 function Get-ShErrorText {
+    <#
+      The Teams cmdlets wrap their real failure in an AggregateException, whose
+      own Message is the useless "One or more errors occurred." Walk the whole
+      tree so the log shows what actually went wrong.
+    #>
     param($ErrorRecord)
-    $msg = ''
-    if ($ErrorRecord -and $ErrorRecord.Exception) { $msg = $ErrorRecord.Exception.Message }
+
+    $messages = @()
+    $seen = @{}
+    $queue = New-Object System.Collections.Queue
+    if ($ErrorRecord -and $ErrorRecord.Exception) { $queue.Enqueue($ErrorRecord.Exception) }
+
+    $guard = 0
+    while ($queue.Count -gt 0 -and $guard -lt 16) {
+        $guard++
+        $ex = $queue.Dequeue()
+        if ($null -eq $ex) { continue }
+
+        if ($ex -is [System.AggregateException]) {
+            foreach ($inner in $ex.InnerExceptions) { if ($inner) { $queue.Enqueue($inner) } }
+        } else {
+            $m = [string]$ex.Message
+            if ($m -and -not $seen.ContainsKey($m)) { $seen[$m] = $true; $messages += $m }
+        }
+        if ($ex.InnerException) { $queue.Enqueue($ex.InnerException) }
+    }
+
+    $msg = ($messages -join ' -> ')
     if ([string]::IsNullOrWhiteSpace($msg)) { $msg = "$ErrorRecord" }
     $msg = ($msg -replace '\s+', ' ').Trim()
-    if ($msg.Length -gt 400) { $msg = $msg.Substring(0, 400) + '...' }
+    if ($msg.Length -gt 600) { $msg = $msg.Substring(0, 600) + '...' }
     return $msg
 }
 
@@ -197,6 +222,25 @@ function Get-ShTeamSnapshot {
     }
 }
 
+function Test-ShChannelExists {
+    <#
+      Teams reports a duplicate channel name as a bare BadRequest from its
+      templates backend, with no usable text, and it sometimes returns an error
+      for a create that in fact succeeded. Asking what is actually there beats
+      reading the error message either way.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$GroupId,
+        [Parameter(Mandatory = $true)][string]$DisplayName
+    )
+    try {
+        foreach ($c in @(Get-TeamChannel -GroupId $GroupId -ErrorAction Stop)) {
+            if ([string]$c.DisplayName -eq $DisplayName) { return $true }
+        }
+    } catch { }
+    return $false
+}
+
 function Get-ShChannelMembers {
     param(
         [Parameter(Mandatory = $true)][string]$GroupId,
@@ -278,7 +322,7 @@ function Invoke-ShOperation {
             if ($Op.PSObject.Properties.Name -contains 'description' -and $Op.description) {
                 $description = [string]$Op.description
             }
-            return Invoke-ShTeamsWrite -Action {
+            $created = Invoke-ShTeamsWrite -Action {
                 $newChannelArgs = @{
                     GroupId        = $groupId
                     DisplayName    = $channel
@@ -289,6 +333,22 @@ function Invoke-ShOperation {
                 if ($description) { $newChannelArgs['Description'] = $description }
                 New-TeamChannel @newChannelArgs
             }
+            if ($created.ok) { return $created }
+
+            # Did it work anyway, or is the channel already there?
+            Start-Sleep -Seconds 2
+            if (Test-ShChannelExists -GroupId $groupId -DisplayName $channel) {
+                return @{
+                    ok      = $true
+                    message = "The channel is there - Teams reported an error but the channel exists."
+                    skipped = $true
+                }
+            }
+
+            $created.message = $created.message +
+                ' Teams keeps the name of a deleted channel reserved for good, so if "' +
+                $channel + '" ever existed in this team, pick a different name.'
+            return $created
         }
 
         'addTeamUser' {
