@@ -165,6 +165,28 @@ function New-TeamChannel {
     return $channel
 }
 
+function Remove-TeamChannel {
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$GroupId,
+          [Parameter(Mandatory = $true)][string]$DisplayName)
+    Start-Sleep -Milliseconds $script:MockLatencyMs
+
+    if (-not $script:MockChannels.ContainsKey($GroupId)) { throw "Team '$GroupId' was not found." }
+    $found = $false
+    foreach ($c in $script:MockChannels[$GroupId]) {
+        if ($c.DisplayName -eq $DisplayName) {
+            $found = $true
+            if ($c.MembershipType -eq 'Standard' -and $DisplayName -eq 'General') {
+                throw "The General channel cannot be deleted."
+            }
+        }
+    }
+    if (-not $found) { throw "Channel '$DisplayName' was not found." }
+
+    $script:MockChannels[$GroupId] = @($script:MockChannels[$GroupId] | Where-Object { $_.DisplayName -ne $DisplayName })
+    $script:MockChannelMembers.Remove((Get-MockKey -GroupId $GroupId -DisplayName $DisplayName))
+}
+
 function Add-TeamUser {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$GroupId,

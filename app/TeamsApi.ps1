@@ -222,6 +222,24 @@ function Get-ShTeamSnapshot {
     }
 }
 
+function Get-ShChannelType {
+    <# Returns Standard / Private / Shared, or '' when the channel is not there. #>
+    param(
+        [Parameter(Mandatory = $true)][string]$GroupId,
+        [Parameter(Mandatory = $true)][string]$DisplayName
+    )
+    try {
+        foreach ($c in @(Get-TeamChannel -GroupId $GroupId -ErrorAction Stop)) {
+            if ([string]$c.DisplayName -eq $DisplayName) {
+                $t = Get-ShUserField -Object $c -Names @('MembershipType')
+                if (-not $t) { $t = 'Standard' }
+                return $t
+            }
+        }
+    } catch { }
+    return ''
+}
+
 function Test-ShChannelExists {
     <#
       Teams reports a duplicate channel name as a bare BadRequest from its
@@ -367,6 +385,33 @@ function Invoke-ShOperation {
             return Invoke-ShTeamsWrite -Action {
                 Add-TeamChannelUser -GroupId $groupId -DisplayName $channel -User $user -Role Owner -ErrorAction Stop
             }
+        }
+
+        'deleteChannel' {
+            # Deleting a channel destroys its conversations and files, so refuse
+            # anything that is not a private channel of this team. A standard
+            # channel is shared with everyone and General cannot go at all.
+            $type = Get-ShChannelType -GroupId $groupId -DisplayName $channel
+            if (-not $type) {
+                return @{ ok = $true; message = 'Already gone - nothing to delete.'; skipped = $true }
+            }
+            if ($type -ne 'Private') {
+                return @{ ok = $false
+                          message = "Refused: `"$channel`" is a $type channel, and Sortinghat only deletes private ones." }
+            }
+
+            $removed = Invoke-ShTeamsWrite -Action {
+                Remove-TeamChannel -GroupId $groupId -DisplayName $channel -ErrorAction Stop
+            }
+            if ($removed.ok) { return $removed }
+
+            Start-Sleep -Seconds 2
+            if (-not (Test-ShChannelExists -GroupId $groupId -DisplayName $channel)) {
+                return @{ ok = $true
+                          message = 'The channel is gone - Teams reported an error but the deletion went through.'
+                          skipped = $true }
+            }
+            return $removed
         }
 
         'removeChannelUser' {

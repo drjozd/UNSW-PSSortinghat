@@ -99,6 +99,11 @@ function goto(step) {
   S.step = step;
   $$('[data-panel]').forEach(p => { p.hidden = p.dataset.panel !== step; });
   const reached = STEPS.indexOf(step);
+  if (reached < 0) {                       // cleanup, which is not a numbered step
+    $$('#stepList li').forEach(li => li.classList.remove('current'));
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    return;
+  }
   $$('#stepList li').forEach(li => {
     const i = STEPS.indexOf(li.dataset.step);
     li.classList.toggle('current', i === reached);
@@ -295,6 +300,7 @@ async function loadTeamContents() {
     }
 
     renderTeamSummary();
+    $('#cleanupLink').hidden = false;
     $('#toSortBtn').disabled = false;
   } catch (err) {
     toast(err.message, 6000);
@@ -1293,19 +1299,21 @@ $('#applyBtn').addEventListener('click', async () => {
 
 $('#retryBtn').addEventListener('click', () => runOps(S.failedOps || [], true));
 
-$('#downloadReportBtn').addEventListener('click', () => {
+function downloadReport(rows, label) {
   const header = ['Time', 'Action', 'Channel', 'Person', 'Result', 'Detail'];
   const cell = v => `"${String(v === null || v === undefined ? '' : v).replace(/"/g, '""')}"`;
   const csv = [header.join(',')]
-    .concat(S.results.map(r => [r.time, r.action, r.channel, r.person, r.result, r.detail].map(cell).join(',')))
+    .concat(asArray(rows).map(r => [r.time, r.action, r.channel, r.person, r.result, r.detail].map(cell).join(',')))
     .join('\r\n');
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `sortinghat-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.csv`;
+  a.download = `sortinghat-${label}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.csv`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-});
+}
+
+$('#downloadReportBtn').addEventListener('click', () => downloadReport(S.results, 'run'));
 
 $('#openReportsBtn').addEventListener('click', async () => {
   try { await api('POST', '/api/open-reports', {}); } catch (e) { toast('Could not open the folder.'); }
@@ -1317,6 +1325,162 @@ $('#reloadTeamBtn').addEventListener('click', async () => {
   applyRoster();
   toast('Reloaded from Teams.');
 });
+
+
+/* ── deleting channels ──────────────────────────────────────────────────────
+   Deliberately off the five-step path: reached only from the link in the rail,
+   gated behind typing the team name, and refused server-side for anything that
+   is not a private channel.
+   ------------------------------------------------------------------------- */
+
+function logInto(sel, cls, text) {
+  const el = document.createElement('div');
+  el.className = cls;
+  el.textContent = text;
+  $(sel).appendChild(el);
+  $(sel).scrollTop = $(sel).scrollHeight;
+}
+
+$('#cleanupLink').addEventListener('click', () => {
+  closeMemberMenu();
+  renderCleanup();
+  goto('cleanup');
+});
+
+$('#cleanupBackBtn').addEventListener('click', () => goto('sort'));
+
+$('#cleanupDoneBtn').addEventListener('click', async () => {
+  goto('list');
+  await loadTeamContents();
+  applyRoster();
+  goto('sort');
+});
+
+function renderCleanup() {
+  $('#cleanupProgress').hidden = true;
+  $('#cleanupActions').hidden = false;
+  $('#cleanupConfirm').value = '';
+  $('#cleanupTeamName').textContent = S.teamName;
+  S.cleanupPick = new Set();
+
+  const rows = S.channels.map(c => {
+    const n = (S.assign.get(c.name) || new Set()).size;
+    return `<label class="cleanup-row" data-channel="${esc(c.name)}">
+      <input type="checkbox" data-pick="${esc(c.name)}">
+      <span class="cr-name">${esc(c.name)}</span>
+      ${c.isNew ? '<span class="cr-tag">not created yet</span>' : ''}
+      <span class="cr-meta">${plural(n, 'member')}</span>
+    </label>`;
+  }).join('');
+
+  $('#cleanupList').innerHTML = rows || '<p class="muted">This team has no private channels.</p>';
+  updateCleanupState();
+}
+
+function updateCleanupState() {
+  const n = S.cleanupPick ? S.cleanupPick.size : 0;
+  const matches = $('#cleanupConfirm').value.trim() === String(S.teamName).trim();
+  $('#cleanupConfirmWrap').hidden = n === 0;
+  $('#cleanupDeleteBtn').disabled = !(n > 0 && matches);
+  $('#cleanupDeleteBtn').textContent = n ? `Delete ${plural(n, 'channel')}` : 'Delete the selected channels';
+}
+
+$('#cleanupList').addEventListener('change', e => {
+  const box = e.target.closest('[data-pick]');
+  if (!box) return;
+  if (box.checked) S.cleanupPick.add(box.dataset.pick); else S.cleanupPick.delete(box.dataset.pick);
+  box.closest('.cleanup-row').classList.toggle('on', box.checked);
+  updateCleanupState();
+});
+
+$('#cleanupConfirm').addEventListener('input', updateCleanupState);
+
+$('#cleanupDeleteBtn').addEventListener('click', async () => {
+  const names = Array.from(S.cleanupPick);
+  if (!names.length) return;
+
+  const ok = await askDialog({
+    title: `Delete ${plural(names.length, 'channel')}?`,
+    message: names.join(', ') + '. Their conversations and files go too. A team owner can ' +
+      'restore them for 30 days; after that they are gone for good.',
+    okText: 'Delete'
+  });
+  if (ok === null) return;
+
+  // A channel that was never applied exists only on the board.
+  const unsaved = names.filter(n => (S.channels.find(c => c.name === n) || {}).isNew);
+  const real = names.filter(n => unsaved.indexOf(n) < 0);
+
+  $('#cleanupActions').hidden = true;
+  $('#cleanupProgress').hidden = false;
+  $('#cleanupFooter').hidden = true;
+  $('#cleanupLog').innerHTML = '';
+  $('#cleanupTitle').textContent = 'Deleting channels';
+  S.cleanupResults = [];
+
+  unsaved.forEach(n => {
+    logInto('#cleanupLog', 'l-skip', `– "${n}" was never created — removed from the board only`);
+    S.cleanupResults.push({ time: new Date().toLocaleString(), action: `Discard the unsaved channel "${n}"`,
+      channel: n, person: '', result: 'skipped', detail: 'Never existed in Teams' });
+  });
+
+  let failed = 0;
+  for (let i = 0; i < real.length; i++) {
+    const name = real[i];
+    $('#cleanupBar').style.width = Math.round((i / real.length) * 100) + '%';
+    $('#cleanupText').textContent = `Deleting "${name}" (${i + 1} of ${real.length})…`;
+
+    let res;
+    try {
+      res = await api('POST', '/api/op', { op: { type: 'deleteChannel', groupId: S.teamId, channel: name } });
+    } catch (err) {
+      res = { ok: false, message: err.message };
+    }
+
+    const outcome = res.ok ? (res.skipped ? 'skipped' : 'done') : 'failed';
+    if (!res.ok) failed++;
+    logInto('#cleanupLog', res.ok ? (res.skipped ? 'l-skip' : 'l-ok') : 'l-fail',
+      `${res.ok ? '✓' : '✗'} Delete "${name}"` + (res.message ? ` — ${res.message}` : ''));
+    S.cleanupResults.push({ time: new Date().toLocaleString(), action: `Delete the private channel "${name}"`,
+      channel: name, person: '', result: outcome, detail: res.message || '' });
+
+    if (res.ok) {
+      S.channels = S.channels.filter(c => c.name !== name);
+      S.assign.delete(name); S.original.delete(name); S.locked.delete(name);
+    }
+  }
+
+  unsaved.forEach(n => {
+    S.channels = S.channels.filter(c => c.name !== n);
+    S.assign.delete(n); S.original.delete(n); S.locked.delete(n);
+  });
+
+  $('#cleanupBar').style.width = '100%';
+  const done = S.cleanupResults.filter(r => r.result === 'done').length;
+  $('#cleanupTitle').textContent = failed ? 'Finished with some problems' : 'Done';
+  $('#cleanupText').textContent =
+    `${plural(done, 'channel')} deleted` + (failed ? `, ${failed} failed` : '') +
+    (unsaved.length ? `, ${unsaved.length} discarded from the board` : '') + '.';
+
+  try {
+    const r = await api('POST', '/api/report', { rows: S.cleanupResults, label: S.teamName + ' deletions' });
+    if (r.ok) logInto('#cleanupLog', 'l-skip', `Report saved to ${r.path}`);
+  } catch (e) { /* the download button still works */ }
+
+  const log = $('#cleanupLog').innerHTML;
+  const title = $('#cleanupTitle').textContent;
+  const text = $('#cleanupText').textContent;
+  renderCleanup();                       // rebuild the list without the deleted ones
+  $('#cleanupLog').innerHTML = log;
+  $('#cleanupTitle').textContent = title;
+  $('#cleanupText').textContent = text;
+  $('#cleanupBar').style.width = '100%';
+  $('#cleanupProgress').hidden = false;
+  $('#cleanupActions').hidden = true;
+  $('#cleanupFooter').hidden = false;
+});
+
+$('#cleanupReportBtn').addEventListener('click', () => downloadReport(S.cleanupResults, 'deletions'));
 
 /* ── start ──────────────────────────────────────────────────────────────── */
 

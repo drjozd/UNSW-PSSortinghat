@@ -1,0 +1,20 @@
+# Line endings are pinned per file type rather than left to whatever git a
+# contributor happens to have configured. This is not cosmetic: a .command file
+# checked out with CRLF fails on macOS with "bad interpreter: /bin/bash^M", and
+# cmd.exe mishandles multi-line blocks in a .cmd saved with bare LF.
+
+* text=auto eol=lf
+
+*.cmd     text eol=crlf
+*.txt     text eol=crlf
+*.ps1     text eol=crlf
+*.command text eol=lf
+*.sh      text eol=lf
+
+*.png binary
+*.jpg binary
+*.zip binary
+
+# Not part of what a lecturer downloads.
+.gitattributes export-ignore
+.gitignore    export-ignore

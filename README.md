@@ -125,6 +125,32 @@ report is saved to the `reports` folder next to the program.
 
 ---
 
+## Deleting channels
+
+There is a **Delete channels…** link at the bottom of the step list, once a team is
+open. It is deliberately off the five-step path: end-of-term cleanup is not
+everyday group work, and it is the one thing Sortinghat does that cannot be
+undone by putting somebody back.
+
+Before it will do anything you have to tick the channels and type the team name
+exactly. Then:
+
+- a channel you added on the board but never applied is simply dropped from the
+  board — nothing is sent to Teams;
+- a real channel is deleted, and the run is written to a CSV in `reports` like
+  any other.
+
+What deleting actually costs you: the channel's conversations and its files go
+with it. A team owner can restore it for **30 days**, and restoring brings back
+the messages and the files. After that it is gone. The name is blocked from reuse
+for at least those 30 days — and Microsoft's own documentation says elsewhere
+that a deleted channel name can never be recreated at all, for information-
+protection reasons. Plan on not getting the name back.
+
+Sortinghat will only delete **private** channels. The server checks the type
+before deleting and refuses anything else, so a standard channel — which everyone
+in the team can see — cannot be removed through this tool even by accident.
+
 ## Practice mode
 
 Double-click the **Practice run** file for your computer to work against a fake
@@ -148,7 +174,9 @@ before doing it for real.
 
 - touch standard channels — everyone in a team can see those, so there is nothing
   to sort
-- delete channels, delete teams, or remove anyone from the team itself
+- delete teams, or remove anyone from the team itself
+- delete standard or shared channels — only private ones, and only from the
+  separate cleanup screen
 - remove the last owner of a channel
 - send anything anywhere except to Microsoft. The web page is served from your own
   machine on `127.0.0.1`, which is not reachable from the network, and each run

@@ -37,6 +37,7 @@
     </ol>
     <div class="rail-foot">
       <p class="hint">Nothing in Teams changes until you press <strong>Apply</strong> on step&nbsp;5.</p>
+      <button id="cleanupLink" class="link-btn" hidden>Delete channels&hellip;</button>
     </div>
   </nav>
 
@@ -200,6 +201,48 @@
           <button id="downloadReportBtn" class="btn btn-ghost btn-sm">Download the report</button>
           <button id="openReportsBtn" class="btn btn-ghost btn-sm">Open the reports folder</button>
           <button id="reloadTeamBtn" class="btn btn-ghost btn-sm">Reload this team from Teams</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Cleanup (deliberately off the five-step path) ──────────── -->
+    <section class="panel" data-panel="cleanup" hidden>
+      <h1>Delete private channels</h1>
+      <p class="lede">Kept away from the sorting board on purpose. This is for clearing
+        out a finished term, not for everyday group work.</p>
+
+      <div class="notice notice-error">
+        <strong>Deleting a channel is not like moving a student.</strong>
+        <ul>
+          <li>Its conversations and its files go with it.</li>
+          <li>A team owner can restore it for <strong>30 days</strong>, after which it is gone.</li>
+          <li>The name is blocked from reuse for at least those 30 days, and Microsoft's own
+            documentation says in places that a deleted channel name never comes back. Assume
+            you cannot have it again.</li>
+        </ul>
+      </div>
+
+      <div id="cleanupList" class="cleanup-list"></div>
+
+      <div class="field" id="cleanupConfirmWrap" hidden>
+        <label for="cleanupConfirm">To confirm, type the team name exactly:
+          <strong id="cleanupTeamName"></strong></label>
+        <input id="cleanupConfirm" type="text" autocomplete="off" spellcheck="false">
+      </div>
+
+      <div class="actions" id="cleanupActions">
+        <button id="cleanupDeleteBtn" class="btn btn-danger btn-lg" disabled>Delete the selected channels</button>
+        <button id="cleanupBackBtn" class="btn btn-ghost">Back to sorting</button>
+      </div>
+
+      <div id="cleanupProgress" class="card" hidden>
+        <h2 id="cleanupTitle">Deleting</h2>
+        <div class="progress"><div id="cleanupBar" class="progress-bar"></div></div>
+        <p id="cleanupText" class="muted"></p>
+        <div id="cleanupLog" class="log" role="log" aria-live="polite"></div>
+        <div class="row gap" id="cleanupFooter" hidden>
+          <button id="cleanupDoneBtn" class="btn btn-primary">Back to sorting</button>
+          <button id="cleanupReportBtn" class="btn btn-ghost btn-sm">Download the report</button>
         </div>
       </div>
     </section>

@@ -1,3 +1,7 @@
 # Run reports contain student names and addresses - never commit them.
 reports/
 *.csv
+
+# Files saved out of the Claude desktop app land here, including zips of this
+# very repo. Nothing in it belongs in version control.
+Claude outputs/
